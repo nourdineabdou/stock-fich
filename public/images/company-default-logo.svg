@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="120" viewBox="0 0 360 120" role="img" aria-label="FreezePro Maroc">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0ea5e9"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="356" height="116" rx="18" fill="#0f172a" stroke="#1e293b"/>
+  <circle cx="56" cy="60" r="28" fill="url(#g)"/>
+  <path d="M44 60h24M56 48v24" stroke="#e0f2fe" stroke-width="4" stroke-linecap="round"/>
+  <text x="98" y="54" fill="#e2e8f0" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">FreezePro</text>
+  <text x="98" y="79" fill="#7dd3fc" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="600">Maroc</text>
+</svg>
