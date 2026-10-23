@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Tunnel;
 use App\Models\ColdRoom;
 use App\Models\CartAssignment;
+use App\Models\ProcessingOrder;
 use App\Http\Requests\TunnelRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,7 +14,7 @@ class TunnelController extends Controller
 {
     public function index(Request $request)
     {
-        $tunnels = Tunnel::with(['coldRoom'])
+        $tunnels = Tunnel::with(['coldRoom', 'cartAssignments' => fn ($q) => $q->where('status', 'active')])
             ->withCount('carts')
             ->when($request->cold_room_id, fn($q) => $q->where('cold_room_id', $request->cold_room_id))
             ->when($request->search, fn($q) => $q->where('name', 'like', "%{$request->search}%"))
@@ -72,11 +73,34 @@ class TunnelController extends Controller
             $assignment->cart()?->update(['status' => 'empty']);
         });
 
-        $redirect = $assignment->processing_order_id
-            ? route('packaging.create', ['processing_order_id' => $assignment->processing_order_id])
-            : route('tunnels.show', $tunnel);
+        return $this->redirectAfterRelease($tunnel, [$assignment->processing_order_id], 1);
+    }
 
-        return redirect($redirect)->with('success', 'Chariot dissocie du tunnel. Vous pouvez passer au cartonnage.');
+    /** Vers le cartonnage seulement si tous les chariots du traitement sont sortis du tunnel. */
+    private function redirectAfterRelease(Tunnel $tunnel, array $processingOrderIds, int $released)
+    {
+        $orders = ProcessingOrder::with('cartAssignments')->whereIn('id', array_filter($processingOrderIds))->get();
+        $ready = $orders->filter(fn ($o) => $o->isReadyForPackaging());
+        $waiting = $orders->reject(fn ($o) => $o->isReadyForPackaging());
+
+        $message = $released . ' chariot(s) sorti(s) du tunnel.';
+        if ($waiting->isNotEmpty()) {
+            $message .= ' En attente : ' . $waiting->map(fn ($o) => $o->reference . ' (' . $o->cartAssignments->where('status', 'active')->count() . ' chariot(s) encore en tunnel)')->implode(', ')
+                . '. Le cartonnage se débloque quand tous les chariots sont sortis.';
+        }
+
+        if ($ready->count() === 1 && $waiting->isEmpty()) {
+            return redirect()->route('packaging.create', ['processing_order_id' => $ready->first()->id])
+                ->with('success', $message . ' Vous pouvez passer au cartonnage.');
+        }
+
+        if ($ready->isNotEmpty()) {
+            return redirect()->route('packaging.create')
+                ->with('success', $message . ' Prêt pour le cartonnage : ' . $ready->pluck('reference')->implode(', ') . '.')
+                ->with('pending_processing_order_ids', $ready->pluck('id')->all());
+        }
+
+        return redirect()->route('tunnels.show', $tunnel)->with($waiting->isNotEmpty() ? 'info' : 'success', $message);
     }
 
     public function releaseMultipleAssignments(Request $request, Tunnel $tunnel)
@@ -118,17 +142,7 @@ class TunnelController extends Controller
             }
         });
 
-        // Rediriger vers le cartonnage avec les processing orders
-        if (count($processingOrderIds) === 1) {
-            // Si un seul processing order, rediriger directement
-            return redirect(route('packaging.create', ['processing_order_id' => $processingOrderIds[0]]))
-                ->with('success', count($assignments) . ' chariot(s) dissocie(s). Veuillez passer au cartonnage.');
-        } else {
-            // Si plusieurs processing orders, afficher la page de cartonnage avec banneau
-            return redirect(route('packaging.create'))
-                ->with('success', count($assignments) . ' chariot(s) dissocie(s). Veuillez continuer vers le cartonnage.')
-                ->with('pending_processing_order_ids', $processingOrderIds);
-        }
+        return $this->redirectAfterRelease($tunnel, $processingOrderIds, count($assignments));
     }
 
     public function edit(Tunnel $tunnel)

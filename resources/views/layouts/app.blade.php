@@ -95,106 +95,164 @@
             <i class="fas fa-gauge-high w-5 text-center flex-shrink-0"></i>
             <span x-show="sidebarOpen" class="whitespace-nowrap">Tableau de Bord</span>
         </a>
+        <a href="{{ route('presentation') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 {{ request()->routeIs('presentation') ? 'text-white bg-white/15 shadow-sm' : 'text-slate-300 hover:bg-white/10 hover:text-white' }}">
+            <i class="fas fa-person-chalkboard w-5 text-center flex-shrink-0"></i>
+            <span x-show="sidebarOpen" class="whitespace-nowrap">Présentation</span>
+        </a>
 
         {{-- Section: Opérations --}}
         <div class="px-3 py-1 mt-3 text-xs font-semibold text-slate-500 uppercase tracking-wider nav-label" x-show="sidebarOpen">Opérations</div>
+
+        @can('arrivals.index')
 
         <a href="{{ route('arrivals.index') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 {{ request()->routeIs('arrivals.*') ? 'text-white bg-white/15' : 'text-slate-300 hover:bg-white/10 hover:text-white' }}">
             <i class="fas fa-truck-ramp-box w-5 text-center flex-shrink-0"></i>
             <span x-show="sidebarOpen" class="whitespace-nowrap">Arrivages</span>
         </a>
+
+        @endcan
+        @can('processing.index')
         <a href="{{ route('processing.index') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 {{ request()->routeIs('processing.*') ? 'text-white bg-white/15' : 'text-slate-300 hover:bg-white/10 hover:text-white' }}">
             <i class="fas fa-gears w-5 text-center flex-shrink-0"></i>
             <span x-show="sidebarOpen" class="whitespace-nowrap">Traitement</span>
         </a>
+        @endcan
+        @can('packaging.index')
         <a href="{{ route('packaging.index') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 {{ request()->routeIs('packaging.*') ? 'text-white bg-white/15' : 'text-slate-300 hover:bg-white/10 hover:text-white' }}">
             <i class="fas fa-box-open w-5 text-center flex-shrink-0"></i>
             <span x-show="sidebarOpen" class="whitespace-nowrap">Cartonnage</span>
         </a>
+        @endcan
 
         {{-- Section: Congélation --}}
         <div class="px-3 py-1 mt-3 text-xs font-semibold text-slate-500 uppercase tracking-wider" x-show="sidebarOpen">Congélation</div>
+
+        @can('tunnels.index')
 
         <a href="{{ route('tunnels.index') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 {{ request()->routeIs('tunnels.*') ? 'text-white bg-white/15' : 'text-slate-300 hover:bg-white/10 hover:text-white' }}">
             <i class="fas fa-temperature-low w-5 text-center flex-shrink-0"></i>
             <span x-show="sidebarOpen" class="whitespace-nowrap">Tunnels</span>
         </a>
+
+        @endcan
+        @can('carts.index')
         <a href="{{ route('carts.index') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 {{ request()->routeIs('carts.*') ? 'text-white bg-white/15' : 'text-slate-300 hover:bg-white/10 hover:text-white' }}">
             <i class="fas fa-cart-flatbed-suitcase w-5 text-center flex-shrink-0"></i>
             <span x-show="sidebarOpen" class="whitespace-nowrap">Chariots</span>
         </a>
+        @endcan
+        @can('cold-rooms.index')
         <a href="{{ route('cold-rooms.index') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 {{ request()->routeIs('cold-rooms.*') ? 'text-white bg-white/15' : 'text-slate-300 hover:bg-white/10 hover:text-white' }}">
             <i class="fas fa-igloo w-5 text-center flex-shrink-0"></i>
             <span x-show="sidebarOpen" class="whitespace-nowrap">Chambres Froides</span>
         </a>
+        @endcan
 
         {{-- Section: Stock --}}
         <div class="px-3 py-1 mt-3 text-xs font-semibold text-slate-500 uppercase tracking-wider" x-show="sidebarOpen">Stock</div>
+
+        @can('stock.index')
 
         <a href="{{ route('stock.index') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 {{ request()->routeIs('stock.*') ? 'text-white bg-white/15' : 'text-slate-300 hover:bg-white/10 hover:text-white' }}">
             <i class="fas fa-warehouse w-5 text-center flex-shrink-0"></i>
             <span x-show="sidebarOpen" class="whitespace-nowrap">Stock Client</span>
         </a>
+
+        @endcan
+        @can('stock.create')
         <a href="{{ route('stock.create') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 {{ request()->routeIs('stock.create') ? 'text-white bg-white/15 shadow-sm' : 'text-slate-300 hover:bg-white/10 hover:text-white' }}">
             <i class="fas fa-arrow-right-to-bracket w-5 text-center flex-shrink-0"></i>
             <span x-show="sidebarOpen" class="whitespace-nowrap">Entrée directe client</span>
         </a>
+        @endcan
+        @can('stock.transactions')
         <a href="{{ route('stock.transactions') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 {{ request()->routeIs('stock.transactions*') ? 'text-white bg-white/15' : 'text-slate-300 hover:bg-white/10 hover:text-white' }}">
             <i class="fas fa-arrows-rotate w-5 text-center flex-shrink-0"></i>
             <span x-show="sidebarOpen" class="whitespace-nowrap">Suivi transactions</span>
         </a>
+        @endcan
+        @can('deliveries.index')
         <a href="{{ route('deliveries.index') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 {{ request()->routeIs('deliveries.*') ? 'text-white bg-white/15' : 'text-slate-300 hover:bg-white/10 hover:text-white' }}">
             <i class="fas fa-truck w-5 text-center flex-shrink-0"></i>
             <span x-show="sidebarOpen" class="whitespace-nowrap">Livraisons</span>
         </a>
+        @endcan
 
         {{-- Section: Commercial --}}
         <div class="px-3 py-1 mt-3 text-xs font-semibold text-slate-500 uppercase tracking-wider" x-show="sidebarOpen">Commercial</div>
+
+        @can('clients.index')
 
         <a href="{{ route('clients.index') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 {{ request()->routeIs('clients.*') ? 'text-white bg-white/15' : 'text-slate-300 hover:bg-white/10 hover:text-white' }}">
             <i class="fas fa-users w-5 text-center flex-shrink-0"></i>
             <span x-show="sidebarOpen" class="whitespace-nowrap">Clients</span>
         </a>
+
+        @endcan
+        @can('invoices.index')
         <a href="{{ route('invoices.index') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 {{ request()->routeIs('invoices.*') ? 'text-white bg-white/15' : 'text-slate-300 hover:bg-white/10 hover:text-white' }}">
             <i class="fas fa-file-invoice-dollar w-5 text-center flex-shrink-0"></i>
             <span x-show="sidebarOpen" class="whitespace-nowrap">Fact. Traitement</span>
         </a>
+        @endcan
+        @can('storage-billing.index')
         <a href="{{ route('storage-billing.index') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 {{ request()->routeIs('storage-billing.*') ? 'text-white bg-white/15' : 'text-slate-300 hover:bg-white/10 hover:text-white' }}">
             <i class="fas fa-snowflake w-5 text-center flex-shrink-0"></i>
             <span x-show="sidebarOpen" class="whitespace-nowrap">Fact. Congélation</span>
         </a>
+        @endcan
 
         {{-- Section: Référentiels --}}
         <div class="px-3 py-1 mt-3 text-xs font-semibold text-slate-500 uppercase tracking-wider" x-show="sidebarOpen">Référentiels</div>
+
+        @can('fish-types.index')
 
         <a href="{{ route('fish-types.index') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 {{ request()->routeIs('fish-types.*') ? 'text-white bg-white/15' : 'text-slate-300 hover:bg-white/10 hover:text-white' }}">
             <i class="fas fa-fish w-5 text-center flex-shrink-0"></i>
             <span x-show="sidebarOpen" class="whitespace-nowrap">Types Poissons</span>
         </a>
+
+        @endcan
+        @can('carton-types.index')
         <a href="{{ route('carton-types.index') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 {{ request()->routeIs('carton-types.*') ? 'text-white bg-white/15' : 'text-slate-300 hover:bg-white/10 hover:text-white' }}">
             <i class="fas fa-boxes-stacked w-5 text-center flex-shrink-0"></i>
             <span x-show="sidebarOpen" class="whitespace-nowrap">Types Cartons</span>
         </a>
+        @endcan
 
         {{-- Section: Rapports --}}
         <div class="px-3 py-1 mt-3 text-xs font-semibold text-slate-500 uppercase tracking-wider" x-show="sidebarOpen">Rapports</div>
+
+        @can('reports.index')
 
         <a href="{{ route('reports.index') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 {{ request()->routeIs('reports.*') ? 'text-white bg-white/15' : 'text-slate-300 hover:bg-white/10 hover:text-white' }}">
             <i class="fas fa-chart-bar w-5 text-center flex-shrink-0"></i>
             <span x-show="sidebarOpen" class="whitespace-nowrap">Rapports</span>
         </a>
 
-        @role('Super Admin|Direction')
+        @endcan
+
+        @if(auth()->user()->can('users.index') || auth()->user()->can('roles.index') || auth()->user()->can('settings.index'))
         <div class="px-3 py-1 mt-3 text-xs font-semibold text-slate-500 uppercase tracking-wider" x-show="sidebarOpen">Administration</div>
+        @endif
+        @can('roles.index')
+        <a href="{{ route('roles.index') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 {{ request()->routeIs('roles.*') ? 'text-white bg-white/15' : 'text-slate-300 hover:bg-white/10 hover:text-white' }}">
+            <i class="fas fa-key w-5 text-center flex-shrink-0"></i>
+            <span x-show="sidebarOpen" class="whitespace-nowrap">Rôles et permissions</span>
+        </a>
+        @endcan
+        @can('users.index')
         <a href="{{ route('users.index') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 {{ request()->routeIs('users.*') ? 'text-white bg-white/15' : 'text-slate-300 hover:bg-white/10 hover:text-white' }}">
             <i class="fas fa-user-shield w-5 text-center flex-shrink-0"></i>
             <span x-show="sidebarOpen" class="whitespace-nowrap">Utilisateurs</span>
         </a>
+        @endcan
+        @can('settings.index')
         <a href="{{ route('settings.index') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 {{ request()->routeIs('settings.*') ? 'text-white bg-white/15' : 'text-slate-300 hover:bg-white/10 hover:text-white' }}">
             <i class="fas fa-sliders w-5 text-center flex-shrink-0"></i>
             <span x-show="sidebarOpen" class="whitespace-nowrap">Paramètres</span>
         </a>
-        @endrole
+        @endcan
     </nav>
 
     {{-- User footer --}}
@@ -318,6 +376,18 @@
             </button>
         </div>
         @endif
+        @foreach(['warning' => ['amber', 'fa-triangle-exclamation'], 'info' => ['sky', 'fa-circle-info']] as $flashKey => [$flashColor, $flashIcon])
+        @if(session($flashKey))
+        <div class="mb-5 flex items-center gap-3 bg-{{ $flashColor }}-50 border border-{{ $flashColor }}-200 text-{{ $flashColor }}-800 px-4 py-3 rounded-2xl"
+             x-data="{ show: true }" x-show="show" x-transition>
+            <i class="fas {{ $flashIcon }} text-{{ $flashColor }}-500 text-lg flex-shrink-0"></i>
+            <span class="text-sm font-medium flex-1">{{ session($flashKey) }}</span>
+            <button @click="show=false" class="text-{{ $flashColor }}-500 hover:text-{{ $flashColor }}-700">
+                <i class="fas fa-xmark"></i>
+            </button>
+        </div>
+        @endif
+        @endforeach
 
         @yield('content')
     </main>

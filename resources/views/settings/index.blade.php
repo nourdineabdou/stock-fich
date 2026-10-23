@@ -79,6 +79,11 @@
                 <div>
                     <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">TVA par défaut (%)</label>
                     <input type="number" step="0.1" name="tax_rate" value="{{ $settings['tax_rate'] ?? 20 }}" class="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm dark:bg-slate-700 dark:border-slate-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500">
+                    <label class="mt-2 inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                        <input type="checkbox" name="tax_enabled" value="1" @checked(($settings['tax_enabled'] ?? '0') === '1') class="rounded">
+                        Activer la TVA sur les factures
+                    </label>
+                    <p class="text-xs text-slate-400 mt-1">Désactivée : les factures (traitement, froid) sont émises sans TVA. Le taux est conservé.</p>
                 </div>
             </div>
         </div>
@@ -93,6 +98,23 @@
                 <div>
                     <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Température max (°C)</label>
                     <input type="number" step="0.1" name="temp_max" value="{{ $settings['temp_max'] ?? -18 }}" class="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm dark:bg-slate-700 dark:border-slate-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500">
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-6 mb-5">
+            <h3 class="text-sm font-semibold text-slate-700 dark:text-white mb-1"><i class="fas fa-stopwatch mr-2 text-indigo-500"></i>Temps des chariots dans le tunnel</h3>
+            <p class="text-xs text-slate-500 mb-4">Avant le minimum : en congélation (bleu). Entre les deux : prêt à sortir (vert). Après le maximum : à sortir d'urgence (rouge).</p>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Temps minimum (heures)</label>
+                    <input type="number" min="1" max="720" name="tunnel_min_hours" value="{{ $settings['tunnel_min_hours'] ?? 24 }}" class="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm dark:bg-slate-700 dark:border-slate-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500">
+                    <p class="text-xs text-slate-400 mt-1">24 h = 1 jour</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Temps maximum (heures)</label>
+                    <input type="number" min="1" max="720" name="tunnel_max_hours" value="{{ $settings['tunnel_max_hours'] ?? 72 }}" class="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm dark:bg-slate-700 dark:border-slate-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500">
+                    <p class="text-xs text-slate-400 mt-1">72 h = 3 jours</p>
                 </div>
             </div>
         </div>

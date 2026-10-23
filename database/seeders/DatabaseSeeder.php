@@ -18,7 +18,7 @@ class DatabaseSeeder extends Seeder
             RolesAndPermissionsSeeder::class,  // Rôles & permissions (Spatie)
             CompanySettingsSeeder::class,       // Paramètres société
             UsersSeeder::class,                 // Utilisateurs (5)
-            FishDataSeeder::class,              // Types de poissons + cartons + pivot
+            FishDataSeeder::class,              // Types de poissons + pivot (appelle CartonTypesSeeder)
             InfrastructureSeeder::class,        // Chambres froides + tunnels + chariots
             ClientsSeeder::class,               // Clients (Chario, Kilian…)
             SampleDataSeeder::class,            // Arrivages, traitements, stock, livraisons, factures

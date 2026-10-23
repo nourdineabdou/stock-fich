@@ -244,7 +244,7 @@ class DeliveryController extends Controller
 
             StockMovement::create([
                 'client_id' => $delivery->client_id,
-                'movement_type' => 'out',
+                'movement_type' => 'delivery',
                 'reference_type' => 'delivery',
                 'reference_id' => $delivery->id,
                 'fish_type_id' => $item->fish_type_id,

@@ -44,9 +44,8 @@
                     <tr>
                         <th class="px-4 py-2 text-left">Lot</th>
                         <th class="px-4 py-2 text-left">Poisson / Carton</th>
-                        <th class="px-4 py-2 text-right">Qté</th>
-                        <th class="px-4 py-2 text-right">Prix/carton</th>
-                        <th class="px-4 py-2 text-right">Total</th>
+                        <th class="px-4 py-2 text-right">Cartons</th>
+                        <th class="px-4 py-2 text-right">Poids</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-50 dark:divide-slate-700">
@@ -58,18 +57,16 @@
                             <div class="text-xs text-slate-400">{{ $item->stockBatch->cartonType->name ?? '-' }}</div>
                         </td>
                         <td class="px-4 py-3 text-right font-bold">{{ $item->cartons_count }}</td>
-                        <td class="px-4 py-3 text-right">{{ $item->price_per_carton ? number_format($item->price_per_carton, 2).' MRU' : '-' }}</td>
-                        <td class="px-4 py-3 text-right font-bold text-emerald-600">
-                            {{ $item->price_per_carton ? number_format($item->cartons_count * $item->price_per_carton, 2).' MRU' : '-' }}
-                        </td>
+                        <td class="px-4 py-3 text-right">{{ number_format($item->cartons_count * ($item->stockBatch->weight_per_carton ?? 0), 2, ',', ' ') }} kg</td>
                     </tr>
                     @endforeach
                 </tbody>
                 <tfoot class="bg-slate-50 dark:bg-slate-700/50">
                     <tr>
-                        <td colspan="4" class="px-4 py-2 text-right font-bold text-slate-700 dark:text-white">Total</td>
-                        <td class="px-4 py-2 text-right font-bold text-emerald-600">
-                            {{ number_format($delivery->items->sum(fn($i) => $i->cartons_count * ($i->price_per_carton ?? 0)), 2) }} MRU
+                        <td colspan="2" class="px-4 py-2 text-right font-bold text-slate-700 dark:text-white">Total</td>
+                        <td class="px-4 py-2 text-right font-bold text-slate-700 dark:text-white">{{ $delivery->items->sum('cartons_count') }}</td>
+                        <td class="px-4 py-2 text-right font-bold text-slate-700 dark:text-white">
+                            {{ number_format($delivery->items->sum(fn($i) => $i->cartons_count * ($i->stockBatch->weight_per_carton ?? 0)), 2, ',', ' ') }} kg
                         </td>
                     </tr>
                 </tfoot>

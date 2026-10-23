@@ -71,8 +71,6 @@
                 <th class="text-right">Quantité</th>
                 <th class="text-right">Poids/Carton</th>
                 <th class="text-right">Total Poids</th>
-                <th class="text-right">Prix/Carton</th>
-                <th class="text-right">Montant</th>
             </tr>
         </thead>
         <tbody>
@@ -84,8 +82,6 @@
                 <td class="text-right">{{ $item->cartons_count }}</td>
                 <td class="text-right">{{ number_format($item->stockBatch->weight_per_carton ?? 0, 3) }} kg</td>
                 <td class="text-right">{{ number_format($item->cartons_count * ($item->stockBatch->weight_per_carton ?? 0), 2) }} kg</td>
-                <td class="text-right">{{ $item->price_per_carton ? number_format($item->price_per_carton, 2).' MRU' : '-' }}</td>
-                <td class="text-right">{{ $item->price_per_carton ? number_format($item->cartons_count * $item->price_per_carton, 2).' MRU' : '-' }}</td>
             </tr>
             @endforeach
         </tbody>
@@ -95,8 +91,6 @@
                 <td class="text-right">{{ $delivery->items->sum('cartons_count') }}</td>
                 <td></td>
                 <td class="text-right">{{ number_format($delivery->items->sum(fn($i) => $i->cartons_count * ($i->stockBatch->weight_per_carton ?? 0)), 2) }} kg</td>
-                <td></td>
-                <td class="text-right">{{ number_format($delivery->items->sum(fn($i) => $i->cartons_count * ($i->price_per_carton ?? 0)), 2) }} MRU</td>
             </tr>
         </tfoot>
     </table>

@@ -8,6 +8,7 @@ use App\Models\Client;
 use App\Models\ProcessingOrder;
 use App\Models\PricingRule;
 use App\Models\CompanySetting;
+use App\Services\PaymentService;
 use App\Services\StorageBillingService;
 use App\Http\Requests\InvoiceRequest;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -44,8 +45,8 @@ class InvoiceController extends Controller
         $clients = Client::where('active', true)->orderBy('name')->get();
         $base = Invoice::where('invoice_type', 'processing');
         $totals  = [
-            'unpaid'     => (clone $base)->whereIn('status', ['draft', 'partial'])->sum('total'),
-            'paid'       => (clone $base)->where('status', 'paid')->sum('total'),
+            'unpaid'     => (clone $base)->whereIn('status', ['draft', 'partial'])->sum(DB::raw('total - paid_amount')),
+            'paid'       => (clone $base)->where('status', '!=', 'cancelled')->sum('paid_amount'),
             'this_month' => (clone $base)->whereMonth('invoice_date', now()->month)->sum('total'),
         ];
         return view('invoices.index', compact('invoices', 'clients', 'totals'));
@@ -76,7 +77,7 @@ class InvoiceController extends Controller
             ? $processingOrders->firstWhere('id', (int) $selectedProcessingOrderId)
             : $processingOrders->first();
 
-        $tax = CompanySetting::get('tax_rate', 20);
+        $tax = CompanySetting::taxRate();
         $invoiceItems = $this->buildInvoiceItemsFromProcessing($selectedProcessingOrder);
         $subtotal = collect($invoiceItems)->sum(fn ($item) => $item['total']);
         $taxAmount = $subtotal * ($tax / 100);
@@ -155,7 +156,7 @@ class InvoiceController extends Controller
                 'price' => 'Definissez un tarif chambre froide (regle de prix active ou prix manuel).',
             ]);
         }
-        $taxRate = (float) ($data['tax_rate'] ?? CompanySetting::get('tax_rate', 20));
+        $taxRate = (float) ($data['tax_rate'] ?? CompanySetting::taxRate());
         $invoice = $this->storageBillingService->generateForPeriod(
             $client,
             $start,
@@ -219,7 +220,7 @@ class InvoiceController extends Controller
         ]);
 
         $processing = ProcessingOrder::with(['client', 'items.fishType'])->findOrFail($data['processing_order_id']);
-        $taxRate = (float) ($data['tax_rate'] ?? CompanySetting::get('tax_rate', 20));
+        $taxRate = (float) ($data['tax_rate'] ?? CompanySetting::taxRate());
         $invoiceItems = $this->buildInvoiceItemsFromProcessing($processing);
         $subtotal = collect($invoiceItems)->sum('total');
         $taxAmount = $subtotal * ($taxRate / 100);
@@ -255,7 +256,7 @@ class InvoiceController extends Controller
 
     public function show(Invoice $invoice)
     {
-        $invoice->load(['client', 'items']);
+        $invoice->load(['client', 'items', 'payments.receiver']);
         return view('invoices.show', compact('invoice'));
     }
 
@@ -263,7 +264,7 @@ class InvoiceController extends Controller
     {
         $invoice->load('items');
         $clients = Client::where('active', true)->orderBy('name')->get();
-        $tax     = CompanySetting::get('tax_rate', 20);
+        $tax     = CompanySetting::taxRate();
         $processingOrders = ProcessingOrder::with(['client', 'items.fishType'])->where('client_id', $invoice->client_id)->latest('start_date')->get();
         $selectedProcessingOrder = $invoice->processingOrder()->with(['client', 'items.fishType'])->first();
         $invoiceItems = $invoice->items->map(function ($item) {
@@ -386,7 +387,7 @@ class InvoiceController extends Controller
         }
 
         $subtotal = $items->sum('total');
-        $taxRate = (float) $request->input('tax_rate', CompanySetting::get('tax_rate', 20));
+        $taxRate = (float) $request->input('tax_rate', CompanySetting::taxRate());
         $tax = $subtotal * ($taxRate / 100);
         $total = $subtotal + $tax;
 
@@ -416,10 +417,18 @@ class InvoiceController extends Controller
         return $prefix . '-' . now()->format('Y') . '-' . $num;
     }
 
-    public function markPaid(Invoice $invoice)
+    /** Encaisse le solde restant en especes (raccourci « Payer tout »). */
+    public function markPaid(Invoice $invoice, PaymentService $payments)
     {
-        $invoice->update(['status' => 'paid']);
-        return back()->with('success', 'Facture marquée comme payée.');
+        if ($invoice->balance <= 0) {
+            return back()->with('info', 'Cette facture est déjà réglée.');
+        }
+
+        $receipt = $payments->payInvoice($invoice, $invoice->balance, ['method' => 'cash'], auth()->id());
+
+        return back()->with('success', 'Facture soldée (' . $receipt . ').')
+            ->with('pdf_url', route('payments.receipt', $receipt))
+            ->with('pdf_label', 'Imprimer le reçu');
     }
 }
 

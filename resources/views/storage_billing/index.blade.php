@@ -123,6 +123,17 @@
             @endif
         </div>
         <div class="flex items-center gap-2">
+            @if($clientRule)
+            @can('storage-billing.generate-unbilled')
+            <form method="POST" action="{{ route('storage-billing.generate-unbilled', $selectedClient) }}">
+                @csrf
+                <button type="submit" class="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-xl text-sm font-semibold"
+                        title="Une ligne par semaine terminée, selon le stock réel de chaque semaine">
+                    <i class="fas fa-calendar-week"></i> Facturer semaines non facturées
+                </button>
+            </form>
+            @endcan
+            @endif
             @if($canGenerate)
             <form method="POST" action="{{ route('storage-billing.generate', $selectedClient) }}">
                 @csrf
@@ -149,6 +160,31 @@
             <p class="text-xl font-bold text-emerald-600">{{ number_format($totalPaid, 2, ',', ' ') }} MRU</p>
         </div>
     </div>
+    @can('storage-billing.collect')
+    @if($cumulativeUnpaid > 0)
+    <form method="POST" action="{{ route('storage-billing.collect', $selectedClient) }}"
+          x-data="{ amount: {{ $cumulativeUnpaid }}, balance: {{ $cumulativeUnpaid }} }"
+          class="flex flex-wrap items-end gap-2 px-5 py-3 border-t border-slate-100 dark:border-slate-700 bg-emerald-50/40">
+        @csrf
+        <div>
+            <label class="block text-xs text-emerald-800 mb-1">Encaisser un paiement (partiel ou total)</label>
+            <input type="number" name="amount" step="0.01" min="0.01" :max="balance" x-model.number="amount" class="w-40 px-3 py-2 border border-emerald-200 rounded-xl text-sm font-bold">
+        </div>
+        <button type="button" @click="amount = balance" class="px-2 py-2 text-xs rounded-lg bg-white border border-emerald-200 text-emerald-700 font-semibold">Tout</button>
+        <select name="method" class="px-2 py-2 border border-emerald-200 rounded-xl text-sm">
+            @foreach(\App\Models\InvoicePayment::METHODS as $key => $label)
+            <option value="{{ $key }}">{{ $label }}</option>
+            @endforeach
+        </select>
+        <input type="text" name="reference" placeholder="Référence" class="w-32 px-3 py-2 border border-emerald-200 rounded-xl text-sm">
+        <button type="submit" :disabled="!(amount > 0 && amount <= balance + 0.001)" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl text-sm font-semibold">
+            <i class="fas fa-hand-holding-dollar mr-1"></i> Encaisser
+        </button>
+        <span class="text-[11px] text-emerald-800">Réparti automatiquement sur les factures les plus anciennes.</span>
+        @error('amount')<p class="w-full text-xs text-red-600">{{ $message }}</p>@enderror
+    </form>
+    @endif
+    @endcan
 </div>
 
 @if($clientInvoices->isEmpty())
@@ -187,7 +223,7 @@
                     <th class="px-5 py-2.5 text-left">Période / Description</th>
                     <th class="px-5 py-2.5 text-right">Qté</th>
                     <th class="px-5 py-2.5 text-right">PU</th>
-                    <th class="px-5 py-2.5 text-right">Total TTC</th>
+                    <th class="px-5 py-2.5 text-right">Total</th>
                     <th class="px-5 py-2.5 text-center">Statut</th>
                     <th class="px-5 py-2.5 text-center">Actions</th>
                 </tr>
@@ -228,6 +264,9 @@
                 </td>
                 <td class="px-5 py-3 text-right font-bold text-sm whitespace-nowrap {{ $isPaid ? 'text-emerald-700' : 'text-slate-800 dark:text-white' }}">
                     {{ number_format($invoice->total, 2, ',', ' ') }} MRU
+                    @if($invoice->status === 'partial')
+                    <br><span class="text-[11px] font-medium text-amber-600">reste {{ number_format($invoice->balance, 2, ',', ' ') }}</span>
+                    @endif
                 </td>
                 <td class="px-5 py-3 text-center">
                     @if($isPaid)
@@ -246,13 +285,13 @@
                 </td>
                 <td class="px-5 py-3">
                     <div class="flex items-center justify-center gap-1.5">
-                        @if(!$isPaid)
+                        @if(!$isPaid && auth()->user()->can('storage-billing.pay'))
                         <form method="POST" action="{{ route('storage-billing.pay', $invoice) }}">
                             @csrf @method('PATCH')
                             <button type="submit"
-                                onclick="return confirm('Confirmer le paiement de {{ $invoice->invoice_number }} ?')"
+                                onclick="return confirm('Encaisser le solde de {{ number_format($invoice->balance, 2, ',', ' ') }} MRU pour {{ $invoice->invoice_number }} ?')"
                                 class="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold">
-                                <i class="fas fa-check"></i> Payer
+                                <i class="fas fa-check"></i> Solder
                             </button>
                         </form>
                         @endif

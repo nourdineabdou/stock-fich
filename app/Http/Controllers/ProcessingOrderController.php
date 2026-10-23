@@ -12,6 +12,7 @@ use App\Models\FishType;
 use App\Models\CompanySetting;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
+use App\Models\Tunnel;
 use App\Http\Requests\ProcessingOrderRequest;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -93,8 +94,8 @@ class ProcessingOrderController extends Controller
                     'output_weight'       => $item['output_weight'] ?? 0,
                     'waste_weight'        => $item['waste_weight'] ?? 0,
                     'returned_weight'     => $item['returned_weight'] ?? 0,
-                    'price_per_kg'        => $item['price_per_kg'] ?? 0,
-                    'total'               => ($item['output_weight'] ?? 0) * ($item['price_per_kg'] ?? 0),
+                    'price_per_kg'        => (float) $request->input('price', 0),
+                    'total'               => ($item['output_weight'] ?? 0) * (float) $request->input('price', 0),
                 ]);
             }
 
@@ -103,7 +104,10 @@ class ProcessingOrderController extends Controller
             return $order;
         });
 
-        return redirect()->route('processing.show', $order)->with('success', 'Ordre de traitement créé: ' . $ref);
+        return redirect()->route('processing.show', $order)
+            ->with('success', 'Fiche de traitement créée: ' . $ref)
+            ->with('pdf_url', route('processing.client-pdf', $order))
+            ->with('pdf_label', 'Imprimer la fiche client');
     }
 
     public function show(ProcessingOrder $processing)
@@ -172,8 +176,24 @@ class ProcessingOrderController extends Controller
 
         $distributionIsValidated = !empty($processing->cart_distribution) && is_array($processing->cart_distribution) && count($processing->cart_distribution) > 0;
 
+        $ownAssignments = $processing->cartAssignments->where('status', 'active');
+        $ownCountByTunnel = $ownAssignments->groupBy('tunnel_id')->map->count();
+        $tunnelOptions = Tunnel::with('coldRoom')
+            ->where('active', true)
+            ->orderBy('name')
+            ->get()
+            ->map(fn ($t) => [
+                'id' => $t->id,
+                'name' => $t->name,
+                'cold_room' => $t->coldRoom->name ?? '',
+                'capacity' => (int) $t->capacity_chariots,
+                // Places deja prises par d'autres traitements
+                'occupied_others' => (int) ($activeCountByTunnel[$t->id] ?? 0) - (int) ($ownCountByTunnel[$t->id] ?? 0),
+            ])
+            ->values();
+
         $order = $processing;
-        return view('processing.show', compact('order', 'availableCartOptions', 'preselectedCartIds', 'targetWeight', 'itemCartDistribution', 'activeAssignedCartIds', 'slotSuggestionByCart', 'activeSlotMap', 'distributionIsValidated'));
+        return view('processing.show', compact('order', 'availableCartOptions', 'preselectedCartIds', 'targetWeight', 'itemCartDistribution', 'activeAssignedCartIds', 'slotSuggestionByCart', 'activeSlotMap', 'distributionIsValidated', 'tunnelOptions', 'ownAssignments'));
     }
 
     public function edit(ProcessingOrder $processing)
@@ -208,8 +228,8 @@ class ProcessingOrderController extends Controller
                         'output_weight'       => $item['output_weight'] ?? 0,
                         'waste_weight'        => $item['waste_weight'] ?? 0,
                         'returned_weight'     => $item['returned_weight'] ?? 0,
-                        'price_per_kg'        => $item['price_per_kg'] ?? 0,
-                        'total'               => ($item['output_weight'] ?? 0) * ($item['price_per_kg'] ?? 0),
+                        'price_per_kg'        => (float) $request->input('price', 0),
+                        'total'               => ($item['output_weight'] ?? 0) * (float) $request->input('price', 0),
                     ]);
                 }
             }
@@ -217,7 +237,10 @@ class ProcessingOrderController extends Controller
             $this->syncProcessingInvoice($processing->fresh());
         });
 
-        return redirect()->route('processing.show', $processing)->with('success', 'Ordre mis à jour.');
+        return redirect()->route('processing.show', $processing)
+            ->with('success', 'Fiche de traitement mise à jour.')
+            ->with('pdf_url', route('processing.client-pdf', $processing))
+            ->with('pdf_label', 'Imprimer la fiche client');
     }
 
     public function destroy(ProcessingOrder $processing)
@@ -268,23 +291,20 @@ class ProcessingOrderController extends Controller
 
             foreach ($activeAssignments as $assignment) {
                 if (! $requestedCartIds->contains((int) $assignment->cart_id)) {
-                    $assignment->update([
-                        'status' => 'completed',
-                        'released_at' => now(),
-                    ]);
-
+                    // Chariot retire avant passage au tunnel : ce n'est pas une sortie de tunnel
                     $assignment->cart()?->update(['status' => 'empty']);
+                    $assignment->delete();
                 }
             }
 
             foreach ($requestedCartIds as $cartId) {
                 $existing = $activeAssignments->firstWhere('cart_id', $cartId);
                 if (! $existing) {
-                    $cart = Cart::find($cartId);
+                    // Pas encore dans un tunnel : le tunnel est choisi a l'etape « Chariots dans les tunnels »
                     CartAssignment::create([
                         'cart_id' => $cartId,
                         'processing_order_id' => $processing->id,
-                        'tunnel_id' => $cart?->tunnel_id,
+                        'tunnel_id' => null,
                         'assigned_at' => now(),
                         'status' => 'active',
                     ]);
@@ -297,6 +317,122 @@ class ProcessingOrderController extends Controller
         return back()->with('success', 'Affectation des chariots enregistree.');
     }
 
+    /** Frais de traitement : un seul prix par kg applique a toute la quantite triee (tous types). */
+    public function savePrices(Request $request, ProcessingOrder $processing)
+    {
+        $data = $request->validate(['price' => 'required|numeric|min:0']);
+
+        if ($processing->invoice && in_array($processing->invoice->status, ['paid', 'cancelled'], true)) {
+            return back()->withErrors(['price' => 'La facture de ce traitement est déjà ' . ($processing->invoice->status === 'paid' ? 'payée' : 'annulée') . ' : le prix ne peut plus être modifié.']);
+        }
+
+        $price = (float) $data['price'];
+
+        DB::transaction(function () use ($processing, $price) {
+            $processing->update(['price' => $price]);
+            $this->applyUniformPrice($processing);
+            $this->syncProcessingInvoice($processing->fresh());
+        });
+
+        return back()->with('success', 'Frais de traitement enregistrés : ' . number_format($price, 2, ',', ' ') . ' MRU/kg. Facture mise à jour.')
+            ->with('pdf_url', route('processing.client-pdf', $processing))
+            ->with('pdf_label', 'Imprimer la fiche client');
+    }
+
+    /** Le prix au kg du traitement s'applique a chaque ligne de tri (memes frais pour tous les types). */
+    private function applyUniformPrice(ProcessingOrder $processing): void
+    {
+        $price = (float) $processing->price;
+        foreach ($processing->items()->get() as $item) {
+            $item->update(['price_per_kg' => $price, 'total' => (float) $item->output_weight * $price]);
+        }
+    }
+
+    /** Sortie du tunnel de tous les chariots de ce traitement, puis passage au cartonnage. */
+    public function releaseFromTunnels(ProcessingOrder $processing)
+    {
+        $active = $processing->cartAssignments()->where('status', 'active')->with('cart')->get();
+
+        if ($active->isEmpty()) {
+            return back()->with('info', 'Aucun chariot dans le tunnel pour ce traitement.');
+        }
+
+        $notPlaced = $active->whereNull('tunnel_id');
+        if ($notPlaced->isNotEmpty()) {
+            return back()->withErrors([
+                'placements' => $notPlaced->count() . ' chariot(s) ne sont pas encore dans un tunnel : placez-les d\'abord.',
+            ]);
+        }
+
+        DB::transaction(function () use ($active) {
+            foreach ($active as $assignment) {
+                $assignment->update(['status' => 'completed', 'released_at' => now()]);
+                $assignment->cart?->update(['status' => 'empty']);
+            }
+        });
+
+        return redirect()->route('packaging.create', ['processing_order_id' => $processing->id])
+            ->with('success', $active->count() . ' chariot(s) sorti(s) du tunnel. Vous pouvez faire le cartonnage.');
+    }
+
+    public function placeInTunnels(Request $request, ProcessingOrder $processing)
+    {
+        $validated = $request->validate([
+            'placements' => 'required|array|min:1',
+            'placements.*' => 'required|integer|exists:tunnels,id',
+        ]);
+
+        $assignments = $processing->cartAssignments()
+            ->where('status', 'active')
+            ->get()
+            ->keyBy('cart_id');
+
+        $placements = collect($validated['placements'])
+            ->mapWithKeys(fn ($tunnelId, $cartId) => [(int) $cartId => (int) $tunnelId]);
+
+        if ($placements->keys()->diff($assignments->keys())->isNotEmpty()) {
+            return back()->withErrors(['placements' => 'Un ou plusieurs chariots ne sont pas affectes a ce traitement.']);
+        }
+
+        $tunnels = Tunnel::whereIn('id', $placements->values()->unique())->where('active', true)->get()->keyBy('id');
+        if ($tunnels->count() !== $placements->values()->unique()->count()) {
+            return back()->withErrors(['placements' => 'Tunnel introuvable ou inactif.']);
+        }
+
+        foreach ($placements->countBy() as $tunnelId => $wanted) {
+            $tunnel = $tunnels[$tunnelId];
+            if ((int) $tunnel->capacity_chariots <= 0) {
+                continue;
+            }
+
+            $occupiedByOthers = CartAssignment::where('status', 'active')
+                ->where('tunnel_id', $tunnelId)
+                ->whereNotIn('cart_id', $placements->keys())
+                ->count();
+
+            if ($occupiedByOthers + $wanted > (int) $tunnel->capacity_chariots) {
+                $free = max(0, (int) $tunnel->capacity_chariots - $occupiedByOthers);
+                return back()->withErrors([
+                    'placements' => "Le tunnel {$tunnel->name} n'a que {$free} place(s) libre(s) pour {$wanted} chariot(s).",
+                ]);
+            }
+        }
+
+        DB::transaction(function () use ($placements, $assignments) {
+            foreach ($placements as $cartId => $tunnelId) {
+                $assignment = $assignments[$cartId];
+                $assignment->update([
+                    'tunnel_id' => $tunnelId,
+                    // Entree reelle dans le tunnel (debut du temps de congelation)
+                    'assigned_at' => $assignment->tunnel_id ? $assignment->assigned_at : now(),
+                ]);
+                Cart::whereKey($cartId)->update(['tunnel_id' => $tunnelId]);
+            }
+        });
+
+        return back()->with('success', 'Placement des chariots dans les tunnels enregistre.');
+    }
+
     public function cancelCarts(ProcessingOrder $processing)
     {
         $activeAssignments = $processing->cartAssignments()->where('status', 'active')->get();
@@ -307,12 +443,9 @@ class ProcessingOrderController extends Controller
 
         DB::transaction(function () use ($processing, $activeAssignments) {
             foreach ($activeAssignments as $assignment) {
-                $assignment->update([
-                    'status' => 'completed',
-                    'released_at' => now(),
-                ]);
-
+                // Annulation : supprimee (et non « sortie du tunnel ») pour ne pas debloquer le cartonnage
                 $assignment->cart()?->update(['status' => 'empty']);
+                $assignment->delete();
             }
 
             $processing->update(['cart_distribution' => []]);
@@ -365,7 +498,9 @@ class ProcessingOrderController extends Controller
 
         $processing->update(['cart_distribution' => $cleanDistribution]);
 
-        return back()->with('success', 'Repartition type/chariot enregistree.');
+        return back()->with('success', 'Répartition poissons / chariots validée. Imprimez le bon de chargement pour les ouvriers.')
+            ->with('pdf_url', route('processing.worker-sheet-pdf', $processing))
+            ->with('pdf_label', 'Imprimer le bon de chargement');
     }
 
     public function suggestDistribution(ProcessingOrder $processing)
@@ -423,6 +558,27 @@ class ProcessingOrderController extends Controller
 
         $totalWeight = $lines->sum('quantity_kg');
         $subtotal = $lines->sum('line_total');
+        // Un seul prix par kg pour toute la quantite triee
+        $unitPrice = (float) ($processing->price ?: ($totalWeight > 0 ? $subtotal / $totalWeight : 0));
+        $lines = $lines->map(fn ($l) => $l + ['share' => $totalWeight > 0 ? $l['quantity_kg'] / $totalWeight * 100 : 0]);
+
+        // Facture de traitement seule (aucun lien avec la refrigeration) : on reprend sa TVA si elle existe
+        $invoice = Invoice::where('processing_order_id', $processing->id)->first();
+        $tax = $invoice ? (float) $invoice->tax : 0.0;
+        $taxRate = $invoice ? (float) $invoice->tax_rate : 0.0;
+        $grandTotal = $subtotal + $tax;
+
+        $received = (float) $processing->input_weight;
+        $waste = (float) $processing->waste_weight;
+        $returned = (float) $processing->returned_weight;
+        $reception = [
+            'received' => $received,
+            'waste' => $waste,
+            'returned' => $returned,
+            'usable' => max(0, $received - $waste - $returned),
+            'yield' => $received > 0 ? $totalWeight / $received * 100 : null,
+            'pct' => fn ($v) => $received > 0 ? $v / $received * 100 : 0,
+        ];
 
         $settings = [
             'company_name' => CompanySetting::get('company_name', 'FreezePro'),
@@ -455,7 +611,7 @@ class ProcessingOrderController extends Controller
             }
         }
 
-        $pdf = Pdf::loadView('processing.client_pdf', compact('processing', 'lines', 'totalWeight', 'subtotal', 'settings', 'logoPath'))
+        $pdf = Pdf::loadView('processing.client_pdf', compact('processing', 'lines', 'totalWeight', 'subtotal', 'settings', 'logoPath', 'invoice', 'tax', 'taxRate', 'grandTotal', 'reception', 'unitPrice'))
             ->setPaper('a4');
 
         return $pdf->stream('Facture-Traitement-' . $processing->reference . '.pdf');
@@ -486,6 +642,7 @@ class ProcessingOrderController extends Controller
             }
 
             $remainingItemWeight = (float) $item->output_weight;
+            $itemLastRowIndex = null;
 
             foreach ($cartIds as $cartId) {
                 $cart = $assignedCarts[$cartId] ?? null;
@@ -514,14 +671,34 @@ class ProcessingOrderController extends Controller
                     'tunnel_name' => $tunnelName,
                     'slot' => $slot,
                     'cart_code' => $cart->code ?? 'CH-' . $cartId,
+                    'cart_capacity' => (float) ($cart->capacity_kg ?? 0),
                     'fish' => $fishName,
                     'quantity_kg' => $allocatedWeight,
+                    'overflow' => 0.0,
                 ]);
+                $itemLastRowIndex = $rows->count() - 1;
             }
 
-            if ($remainingItemWeight > 0 && $rows->isNotEmpty()) {
-                $lastRowIndex = $rows->count() - 1;
-                $rows[$lastRowIndex]['quantity_kg'] += $remainingItemWeight;
+            // Poids qui depasse la capacite des chariots choisis : ajoute a la derniere ligne
+            // de CE poisson (ou a son premier chariot s'ils sont deja pleins) et signale.
+            if ($remainingItemWeight > 0.0001) {
+                if ($itemLastRowIndex !== null) {
+                    $row = $rows->get($itemLastRowIndex);
+                    $row['quantity_kg'] += $remainingItemWeight;
+                    $row['overflow'] += $remainingItemWeight;
+                    $rows->put($itemLastRowIndex, $row);
+                } elseif ($cart = $assignedCarts[$cartIds->first()] ?? null) {
+                    $rows->push([
+                        'tunnel_id' => (int) ($cart->tunnel_id ?? 0),
+                        'tunnel_name' => $cart->tunnel->name ?? '-',
+                        'slot' => $activeSlotMap[$cart->id]['slot'] ?? null,
+                        'cart_code' => $cart->code ?? 'CH-' . $cart->id,
+                        'cart_capacity' => (float) ($cart->capacity_kg ?? 0),
+                        'fish' => $fishName,
+                        'quantity_kg' => $remainingItemWeight,
+                        'overflow' => $remainingItemWeight,
+                    ]);
+                }
             }
         }
 
@@ -545,6 +722,24 @@ class ProcessingOrderController extends Controller
 
         $totalWeight = $rows->sum('quantity_kg');
 
+        // Fiche ouvrier : un bloc par chariot (ordre tunnel / emplacement), et un recap par poisson
+        $carts = $rows->groupBy('cart_code')->map(fn ($lines) => [
+            'code' => $lines->first()['cart_code'],
+            'tunnel' => $lines->first()['tunnel_name'],
+            'slot' => $lines->first()['slot'],
+            'capacity' => (float) ($lines->first()['cart_capacity'] ?? 0),
+            'lines' => $lines->values(),
+            'total' => (float) $lines->sum('quantity_kg'),
+        ])
+            ->sortBy('code', SORT_NATURAL)
+            ->values();
+        $fishSummary = $rows->groupBy('fish')->map(fn ($lines, $fish) => [
+            'fish' => $fish,
+            'kg' => (float) $lines->sum('quantity_kg'),
+            'carts' => $lines->pluck('cart_code')->unique()->implode(', '),
+        ])->values();
+        $distributionValidated = ! empty($processing->cart_distribution);
+
         $settings = [
             'company_name' => CompanySetting::get('company_name', 'FreezePro Maroc'),
             'company_address' => CompanySetting::get('company_address', ''),
@@ -567,7 +762,7 @@ class ProcessingOrderController extends Controller
             }
         }
 
-        $pdf = Pdf::loadView('processing.worker_sheet_pdf', compact('processing', 'rows', 'totalWeight', 'settings', 'logoPath'))->setPaper('a4');
+        $pdf = Pdf::loadView('processing.worker_sheet_pdf', compact('processing', 'rows', 'totalWeight', 'settings', 'logoPath', 'carts', 'fishSummary', 'distributionValidated'))->setPaper('a4');
 
         return $pdf->stream('Fiche-Chargement-' . $processing->reference . '.pdf');
     }
@@ -709,7 +904,7 @@ class ProcessingOrderController extends Controller
             return;
         }
 
-        $taxRate = (float) CompanySetting::get('tax_rate', 20);
+        $taxRate = CompanySetting::taxRate();
         $subtotal = (float) $lines->sum('total');
         $tax = $subtotal * ($taxRate / 100);
         $total = $subtotal + $tax;
@@ -762,6 +957,11 @@ class ProcessingOrderController extends Controller
                 'unit_price' => $line['unit_price'],
                 'total' => $line['total'],
             ]);
+        }
+
+        // Garder le statut partielle/payee si des encaissements existent deja
+        if ($invoice->payments()->exists()) {
+            $invoice->refreshPaymentStatus();
         }
     }
 

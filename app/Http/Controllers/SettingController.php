@@ -23,9 +23,12 @@ class SettingController extends Controller
             'arrival_prefix' => 'ARR',
             'processing_prefix' => 'TR',
             'tax_rate' => '20',
+            'tax_enabled' => '0',
             'currency' => 'MRU',
             'temp_min' => '-25',
             'temp_max' => '-18',
+            'tunnel_min_hours' => '24',
+            'tunnel_max_hours' => '72',
         ];
 
         $settings = array_replace($defaults, CompanySetting::pluck('value', 'key')->toArray());
@@ -49,6 +52,8 @@ class SettingController extends Controller
             'currency'        => 'nullable|string|max:10',
             'temp_min'        => 'nullable|numeric',
             'temp_max'        => 'nullable|numeric',
+            'tunnel_min_hours' => 'nullable|integer|min:1|max:720',
+            'tunnel_max_hours' => 'nullable|integer|min:1|max:720|gte:tunnel_min_hours',
             'logo'            => 'nullable|image|max:2048',
             'company_logo'    => 'nullable|image|max:2048',
         ]);
@@ -56,13 +61,15 @@ class SettingController extends Controller
         $keys = [
             'company_name','company_address','company_phone','company_email',
             'company_nif','company_ice','invoice_prefix','delivery_prefix',
-            'arrival_prefix','processing_prefix','tax_rate','currency','temp_min','temp_max',
+            'arrival_prefix','processing_prefix','tax_rate','currency','temp_min','temp_max','tunnel_min_hours','tunnel_max_hours',
         ];
         foreach ($keys as $key) {
             if ($request->has($key)) {
                 CompanySetting::set($key, $request->$key ?? '');
             }
         }
+
+        CompanySetting::set('tax_enabled', $request->boolean('tax_enabled') ? '1' : '0');
 
         $logoFile = $request->file('company_logo') ?? $request->file('logo');
         if ($logoFile) {

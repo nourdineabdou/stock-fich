@@ -67,7 +67,7 @@
             <p><strong>N° Facture:</strong> {{ $invoice->invoice_number }}</p>
             <p><strong>Date:</strong> {{ $invoice->invoice_date->format('d/m/Y') }}</p>
             @if($invoice->due_date)<p><strong>Échéance:</strong> {{ $invoice->due_date->format('d/m/Y') }}</p>@endif
-            <p><strong>TVA:</strong> {{ $invoice->tax_rate }}%</p>
+            @if($invoice->tax_rate > 0)<p><strong>TVA:</strong> {{ $invoice->tax_rate }}%</p>@endif
         </div>
     </div>
 
@@ -101,14 +101,26 @@
                 <td>Sous-total HT</td>
                 <td class="text-right">{{ number_format($ht, 2) }} MRU</td>
             </tr>
+            @if($invoice->tax_rate > 0)
             <tr>
                 <td>TVA ({{ $invoice->tax_rate }}%)</td>
                 <td class="text-right">{{ number_format($tax, 2) }} MRU</td>
             </tr>
+            @endif
             <tr>
-                <td>TOTAL TTC</td>
+                <td>{{ $invoice->tax_rate > 0 ? 'TOTAL TTC' : 'TOTAL' }}</td>
                 <td class="text-right">{{ number_format($invoice->total_amount ?: $ttc, 2) }} MRU</td>
             </tr>
+            @if((float) $invoice->paid_amount > 0)
+            <tr>
+                <td>Déjà payé</td>
+                <td class="text-right">{{ number_format($invoice->paid_amount, 2) }} MRU</td>
+            </tr>
+            <tr>
+                <td><b>RESTE À PAYER</b></td>
+                <td class="text-right"><b>{{ number_format($invoice->balance, 2) }} MRU</b></td>
+            </tr>
+            @endif
         </table>
     </div>
 

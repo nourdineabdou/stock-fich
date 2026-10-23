@@ -18,7 +18,7 @@ use App\Models\CompanySetting;
 
 class PackagingOrderController extends Controller
 {
-    private function syncPackagingStock(PackagingOrder $order, ProcessingOrder $processingOrder, array $items, int $coldRoomId, string $entryReference): void
+    private function syncPackagingStock(PackagingOrder $order, ProcessingOrder $processingOrder, iterable $items, int $coldRoomId, string $entryReference): void
     {
         $order->stockBatches()->delete();
         $order->storageEntries()->delete();
@@ -74,8 +74,20 @@ class PackagingOrderController extends Controller
 
     public function create()
     {
-        $processingOrders = ProcessingOrder::where('status', 'processing')
-            ->orWhere('status', 'completed')
+        if ($requested = ProcessingOrder::with(['cartAssignments', 'packagingOrders'])->find(request('processing_order_id'))) {
+            if ($existing = $requested->packagingOrders->first()) {
+                return redirect()->route('packaging.edit', $existing);
+            }
+            if ($reason = $requested->packagingBlockReason()) {
+                return redirect()->route('processing.show', $requested)->with('warning', 'Cartonnage verrouillé : ' . $reason);
+            }
+        }
+
+        // Seuls les traitements sortis du tunnel et pas encore cartonnes
+        $processingOrders = ProcessingOrder::whereIn('status', ['processing', 'completed'])
+            ->whereDoesntHave('packagingOrders')
+            ->whereHas('cartAssignments')
+            ->whereDoesntHave('cartAssignments', fn ($q) => $q->where('status', 'active'))
             ->with(['client', 'items.fishType'])
             ->latest()
             ->get();
@@ -99,6 +111,11 @@ class PackagingOrderController extends Controller
             return back()->withErrors([
                 'items' => 'Ajoutez au moins une ligne de cartonnage valide.',
             ])->withInput();
+        }
+
+        $reason = ProcessingOrder::findOrFail($payload['processing_order_id'])->packagingBlockReason();
+        if ($reason) {
+            return back()->withErrors(['processing_order_id' => 'Cartonnage verrouillé : ' . $reason])->withInput();
         }
 
         $result = DB::transaction(function () use ($payload, $items) {
@@ -171,11 +188,14 @@ class PackagingOrderController extends Controller
     {
         $packaging->load('items');
         $packagingOrder = $packaging;
-        $processingOrders = ProcessingOrder::with('client')->latest()->get();
+        $processingOrders = ProcessingOrder::with(['client', 'items.fishType'])->latest()->get();
         $fishTypes   = FishType::where('active', true)->orderBy('name')->get();
-        $cartonTypes = CartonType::where('active', true)->orderBy('name')->get();
+        $cartonTypes = CartonType::where('active', true)
+            ->with(['fishTypes' => fn ($q) => $q->where('fish_type_carton_types.active', true)])
+            ->orderBy('name')
+            ->get();
         $coldRooms   = ColdRoom::where('active', true)->orderBy('name')->get();
-        return view('packaging.edit', compact('packagingOrder', 'processingOrders', 'fishTypes', 'cartonTypes', 'coldRooms'));
+        return view('packaging.create', compact('packagingOrder', 'processingOrders', 'fishTypes', 'cartonTypes', 'coldRooms'));
     }
 
     public function update(PackagingOrderRequest $request, PackagingOrder $packaging)

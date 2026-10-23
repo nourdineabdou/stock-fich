@@ -31,7 +31,7 @@
                 <th class="px-4 py-3 text-left">Tunnel</th>
                 <th class="px-4 py-3 text-left">Chambre</th>
                 <th class="px-4 py-3 text-right">Temp.</th>
-                <th class="px-4 py-3 text-center">Chariots</th>
+                <th class="px-4 py-3 text-center">Chariots dedans</th>
                 <th class="px-4 py-3 text-center">Occupation</th>
                 <th class="px-4 py-3 text-center">Statut</th>
                 <th class="px-4 py-3 text-center">Actions</th>
@@ -39,7 +39,15 @@
         </thead>
         <tbody class="divide-y divide-slate-50 dark:divide-slate-700">
             @forelse($tunnels as $tunnel)
-            @php $pct = $tunnel->capacity_chariots > 0 ? ($tunnel->carts_count / $tunnel->capacity_chariots * 100) : 0; @endphp
+            @php
+                // Occupation reelle : chariots actuellement dans le tunnel
+                [$tMin, $tMax] = \App\Models\CompanySetting::tunnelWindow();
+                $inside = $tunnel->cartAssignments;
+                $pct = $tunnel->capacity_chariots > 0 ? ($inside->count() / $tunnel->capacity_chariots * 100) : 0;
+                $hoursOf = fn ($a) => $a->assigned_at ? $a->assigned_at->diffInMinutes(now()) / 60 : 0;
+                $readyCount = $inside->filter(fn ($a) => $hoursOf($a) >= $tMin && $hoursOf($a) <= $tMax)->count();
+                $lateCount = $inside->filter(fn ($a) => $hoursOf($a) > $tMax)->count();
+            @endphp
             <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
                 <td class="px-4 py-3">
                     <div class="flex items-center gap-2">
@@ -51,7 +59,15 @@
                 </td>
                 <td class="px-4 py-3 text-slate-500">{{ $tunnel->coldRoom->name ?? '-' }}</td>
                 <td class="px-4 py-3 text-right font-mono text-blue-600">{{ $tunnel->temperature !== null ? $tunnel->temperature.'°C' : '-' }}</td>
-                <td class="px-4 py-3 text-center">{{ $tunnel->carts_count }}/{{ $tunnel->capacity_chariots }}</td>
+                <td class="px-4 py-3 text-center">
+                    <span class="font-semibold">{{ $inside->count() }}/{{ $tunnel->capacity_chariots }}</span>
+                    @if($readyCount || $lateCount)
+                    <div class="mt-1 flex justify-center gap-1 text-[10px] font-semibold">
+                        @if($readyCount)<span class="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">{{ $readyCount }} prêt(s)</span>@endif
+                        @if($lateCount)<span class="px-1.5 py-0.5 rounded bg-red-100 text-red-700">{{ $lateCount }} dépassé(s)</span>@endif
+                    </div>
+                    @endif
+                </td>
                 <td class="px-4 py-3">
                     <div class="flex items-center gap-2">
                         <div class="flex-1 bg-slate-100 dark:bg-slate-700 rounded-full h-2">

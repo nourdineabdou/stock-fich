@@ -84,11 +84,8 @@
                                 <option value="{{ $item->client_stock_batch_id }}">{{ $item->stockBatch->lot_number ?? $item->client_stock_batch_id }}</option>
                             </select>
                         </div>
-                        <div class="col-span-3">
-                            <input type="number" name="items[{{ $i }}][cartons_count]" value="{{ $item->cartons_count }}" placeholder="Cartons" class="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-600 dark:border-slate-500 dark:text-white focus:outline-none">
-                        </div>
-                        <div class="col-span-3">
-                            <input type="number" step="0.01" name="items[{{ $i }}][price_per_carton]" value="{{ $item->price_per_carton }}" placeholder="Prix/carton" class="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-600 dark:border-slate-500 dark:text-white focus:outline-none">
+                        <div class="col-span-6">
+                            <input type="number" name="items[{{ $i }}][cartons_count]" value="{{ $item->cartons_count }}" placeholder="Nombre de cartons" class="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-600 dark:border-slate-500 dark:text-white focus:outline-none">
                         </div>
                         <div class="col-span-1 flex items-center justify-end">
                             <button type="button" onclick="removeItem(this)" class="p-1 text-red-600"><i class="fas fa-times text-xs"></i></button>
@@ -140,8 +137,7 @@ $('#addDeliveryItemBtn').on('click', function() {
     $('#deliveryItems').append(`
     <div class="grid grid-cols-12 gap-2 bg-slate-50 dark:bg-slate-700 rounded-xl p-2">
         <div class="col-span-5"><select name="items[${i}][client_stock_batch_id]" class="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-600 dark:border-slate-500 dark:text-white focus:outline-none">${opts}</select></div>
-        <div class="col-span-3"><input type="number" name="items[${i}][cartons_count]" placeholder="Cartons" class="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-600 dark:border-slate-500 dark:text-white focus:outline-none"></div>
-        <div class="col-span-3"><input type="number" step="0.01" name="items[${i}][price_per_carton]" placeholder="Prix/carton" class="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-600 dark:border-slate-500 dark:text-white focus:outline-none"></div>
+        <div class="col-span-6"><input type="number" name="items[${i}][cartons_count]" placeholder="Nombre de cartons" class="w-full px-2 py-1.5 text-xs border border-slate-200 rounded-lg dark:bg-slate-600 dark:border-slate-500 dark:text-white focus:outline-none"></div>
         <div class="col-span-1 flex items-center justify-end"><button type="button" onclick="removeItem(this)" class="p-1 text-red-600"><i class="fas fa-times text-xs"></i></button></div>
     </div>`);
 });

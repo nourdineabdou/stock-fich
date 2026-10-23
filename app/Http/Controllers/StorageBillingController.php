@@ -6,9 +6,11 @@ use App\Models\Client;
 use App\Models\CompanySetting;
 use App\Models\Invoice;
 use App\Models\PricingRule;
+use App\Services\PaymentService;
 use App\Services\StorageBillingService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class StorageBillingController extends Controller
 {
@@ -42,8 +44,8 @@ class StorageBillingController extends Controller
                     ->orderByDesc('invoice_date')
                     ->get();
 
-                $cumulativeUnpaid = (float) $clientInvoices->whereIn('status', ['draft', 'partial'])->sum('total');
-                $totalPaid        = (float) $clientInvoices->where('status', 'paid')->sum('total');
+                $cumulativeUnpaid = (float) $clientInvoices->whereIn('status', ['draft', 'partial'])->sum(fn ($i) => $i->balance);
+                $totalPaid        = (float) $clientInvoices->where('status', '!=', 'cancelled')->sum('paid_amount');
                 $canGenerate      = $clientRule && $this->isCurrentPeriodUnbilled($clientRule, $clientInvoices->first());
             }
         }
@@ -73,7 +75,7 @@ class StorageBillingController extends Controller
                 return [
                     'client'       => $client,
                     'rule'         => $rule,
-                    'total_unpaid' => (float) $unpaid->sum('total'),
+                    'total_unpaid' => (float) $unpaid->sum(fn ($i) => $i->balance),
                     'nb_unpaid'    => $unpaid->count(),
                     'last_invoice' => $lastInvoice,
                     'is_overdue'   => $isOverdue,
@@ -83,8 +85,8 @@ class StorageBillingController extends Controller
         }
 
         $totals = [
-            'total_unpaid' => (float) Invoice::where('invoice_type', 'storage')->whereIn('status', ['draft', 'partial'])->sum('total'),
-            'total_paid'   => (float) Invoice::where('invoice_type', 'storage')->where('status', 'paid')->sum('total'),
+            'total_unpaid' => (float) Invoice::where('invoice_type', 'storage')->whereIn('status', ['draft', 'partial'])->sum(DB::raw('total - paid_amount')),
+            'total_paid'   => (float) Invoice::where('invoice_type', 'storage')->where('status', '!=', 'cancelled')->sum('paid_amount'),
             'nb_overdue'   => $overview->filter(fn ($r) => $r['is_overdue'])->count(),
             'nb_clients'   => $overview->count(),
         ];
@@ -115,7 +117,7 @@ class StorageBillingController extends Controller
             $end,
             $rule->charge_unit ?? 'kg',
             (float) $rule->price,
-            (float) CompanySetting::get('tax_rate', 20),
+            CompanySetting::taxRate(),
             (int) ($rule->due_days ?? 7),
             (string) ($rule->billing_frequency ?? 'week')
         );
@@ -129,16 +131,80 @@ class StorageBillingController extends Controller
             ->with('success', 'Facture congélation générée : ' . $invoice->invoice_number);
     }
 
-    public function pay(Invoice $invoice)
+    public function generateWeek(Request $request, Client $client)
+    {
+        $data = $request->validate(['week_start' => 'required|date']);
+
+        $rule = PricingRule::where('client_id', $client->id)
+            ->where('service_type', 'storage')
+            ->where('active', true)
+            ->first();
+
+        if (! $rule) {
+            return back()->withErrors(['rule' => 'Aucune règle de facturation congélation pour ce client.']);
+        }
+
+        $start = Carbon::parse($data['week_start'])->startOfDay();
+
+        $invoice = $this->billingService->generateForPeriod(
+            $client,
+            $start,
+            $start->copy()->addDays(6)->endOfDay(),
+            $rule->charge_unit ?? 'kg',
+            (float) $rule->price,
+            CompanySetting::taxRate(),
+            (int) ($rule->due_days ?? 7),
+            'week'
+        );
+
+        if (! $invoice) {
+            return back()->with('warning', 'Aucun stock facturable pour cette semaine.');
+        }
+
+        return back()->with('success', 'Facture froid de la semaine générée : ' . $invoice->invoice_number)
+            ->with('pdf_url', route('invoices.pdf', $invoice));
+    }
+
+    /** Solde la facture froid (raccourci « Payer tout ») en enregistrant un encaissement. */
+    public function pay(Invoice $invoice, PaymentService $payments)
     {
         abort_if($invoice->invoice_type !== 'storage', 403);
-        abort_if($invoice->status === 'paid', 422, 'Facture déjà payée.');
+        abort_if($invoice->balance <= 0, 422, 'Facture déjà payée.');
 
-        $invoice->update(['status' => 'paid']);
+        $receipt = $payments->payInvoice($invoice, $invoice->balance, ['method' => 'cash'], auth()->id());
 
         return redirect()->route('storage-billing.index', ['client_id' => $invoice->client_id])
-            ->with('success', 'Paiement enregistré — ' . $invoice->invoice_number)
-            ->with('pdf_url', route('invoices.pdf', $invoice));
+            ->with('success', 'Paiement enregistré — ' . $invoice->invoice_number . ' (' . $receipt . ')')
+            ->with('pdf_url', route('payments.receipt', $receipt))
+            ->with('pdf_label', 'Imprimer le reçu');
+    }
+
+    /** Une facture froid variable : une ligne par semaine terminee non facturee (quantite x tarif). */
+    public function generateUnbilled(Client $client)
+    {
+        $rule = PricingRule::where('client_id', $client->id)
+            ->where('service_type', 'storage')
+            ->where('active', true)
+            ->first();
+
+        if (! $rule) {
+            return back()->withErrors(['rule' => 'Aucune règle de facturation congélation pour ce client.']);
+        }
+
+        $invoice = $this->billingService->generateUnbilledWeeks(
+            $client,
+            $rule,
+            CompanySetting::taxRate(),
+            (int) ($rule->due_days ?? 7)
+        );
+
+        if (! $invoice) {
+            return back()->with('warning', 'Aucune semaine terminée à facturer.');
+        }
+
+        return back()->with('success', 'Facture froid générée : ' . $invoice->invoice_number . ' (' . $invoice->items()->count() . ' semaine(s)).')
+            ->with('pdf_url', route('invoices.pdf', $invoice))
+            ->with('pdf_label', 'Imprimer la facture');
     }
 
     // ──────────────────────────────────────────────────────────────────

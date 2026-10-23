@@ -56,7 +56,7 @@
                 <th class="px-4 py-3 text-left">Client</th>
                 <th class="px-4 py-3 text-left">Réf. Traitement</th>
                 <th class="px-4 py-3 text-left">Date</th>
-                <th class="px-4 py-3 text-right">Montant TTC</th>
+                <th class="px-4 py-3 text-right">Montant</th>
                 <th class="px-4 py-3 text-center">Statut</th>
                 <th class="px-4 py-3 text-center">Actions</th>
             </tr>

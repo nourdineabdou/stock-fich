@@ -4,6 +4,8 @@ namespace Database\Seeders;
 
 use App\Models\CompanySetting;
 use App\Models\User;
+use App\Support\PermissionCatalog;
+use App\Support\PermissionSync;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Permission;
@@ -15,42 +17,10 @@ class RolesAndPermissionsSeeder extends Seeder
     {
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
 
-        $permissions = [
-            // Clients
-            'clients.view', 'clients.create', 'clients.edit', 'clients.delete',
-            // Fish types
-            'fish-types.view', 'fish-types.create', 'fish-types.edit', 'fish-types.delete',
-            // Carton types
-            'carton-types.view', 'carton-types.create', 'carton-types.edit', 'carton-types.delete',
-            // Arrivals
-            'arrivals.view', 'arrivals.create', 'arrivals.edit', 'arrivals.delete',
-            // Processing
-            'processing.view', 'processing.create', 'processing.edit', 'processing.delete',
-            // Tunnels
-            'tunnels.view', 'tunnels.create', 'tunnels.edit', 'tunnels.delete',
-            // Carts
-            'carts.view', 'carts.create', 'carts.edit', 'carts.delete',
-            // Cold rooms
-            'cold-rooms.view', 'cold-rooms.create', 'cold-rooms.edit', 'cold-rooms.delete',
-            // Packaging
-            'packaging.view', 'packaging.create', 'packaging.edit', 'packaging.delete',
-            // Stock
-            'stock.view', 'stock.create', 'stock.edit', 'stock.delete',
-            // Deliveries
-            'deliveries.view', 'deliveries.create', 'deliveries.edit', 'deliveries.delete',
-            // Invoices
-            'invoices.view', 'invoices.create', 'invoices.edit', 'invoices.delete',
-            // Reports
-            'reports.view',
-            // Settings
-            'settings.view', 'settings.edit',
-            // Users
-            'users.view', 'users.create', 'users.edit', 'users.delete',
-        ];
-
-        foreach ($permissions as $perm) {
-            Permission::firstOrCreate(['name' => $perm]);
-        }
+        // Une permission par action du systeme ; les listes ci-dessous (par module)
+        // sont converties en permissions par action avec PermissionCatalog::fromLegacy().
+        PermissionSync::run(prune: true);
+        $expand = fn (array $legacy) => PermissionCatalog::fromLegacy($legacy);
 
         // Super Admin
         $superAdmin = Role::firstOrCreate(['name' => 'Super Admin']);
@@ -58,52 +28,59 @@ class RolesAndPermissionsSeeder extends Seeder
 
         // Direction
         $direction = Role::firstOrCreate(['name' => 'Direction']);
-        $direction->syncPermissions(Permission::whereNotIn('name', ['users.delete', 'settings.edit'])->get());
+        $direction->syncPermissions(Permission::whereNotIn('name', ['users.destroy', 'settings.edit', 'roles.create', 'roles.edit', 'roles.destroy'])->get());
 
         // Gestionnaire Stock
         $stockManager = Role::firstOrCreate(['name' => 'Gestionnaire Stock']);
-        $stockManager->syncPermissions([
+        $stockManager->syncPermissions($expand([
             'clients.view', 'arrivals.view', 'arrivals.create', 'arrivals.edit',
             'stock.view', 'stock.create', 'stock.edit', 'deliveries.view',
             'deliveries.create', 'deliveries.edit', 'cold-rooms.view',
             'fish-types.view', 'carton-types.view', 'reports.view',
-        ]);
+        ]));
 
         // Gestionnaire Traitement
         $processingManager = Role::firstOrCreate(['name' => 'Gestionnaire Traitement']);
-        $processingManager->syncPermissions([
+        $processingManager->syncPermissions($expand([
             'clients.view', 'arrivals.view', 'processing.view', 'processing.create',
             'processing.edit', 'tunnels.view', 'carts.view', 'carts.edit',
             'packaging.view', 'packaging.create', 'packaging.edit',
             'fish-types.view', 'carton-types.view', 'reports.view',
-        ]);
+        ]));
 
         // Facturation
         $billing = Role::firstOrCreate(['name' => 'Facturation']);
-        $billing->syncPermissions([
+        $billing->syncPermissions($expand([
             'clients.view', 'invoices.view', 'invoices.create', 'invoices.edit',
             'stock.view', 'deliveries.view', 'reports.view',
-        ]);
+        ]));
+
+        // Comptable : voit les factures, les emet, les imprime et encaisse (paiement partiel ou total)
+        $accountant = Role::firstOrCreate(['name' => 'Comptable']);
+        $accountant->syncPermissions($expand([
+            'clients.view', 'invoices.view', 'invoices.create', 'invoices.edit', 'invoices.collect',
+            'processing.view', 'stock.view', 'deliveries.view', 'reports.view',
+        ]));
 
         // Opérateur Tunnel
         $tunnelOp = Role::firstOrCreate(['name' => 'Opérateur Tunnel']);
-        $tunnelOp->syncPermissions([
+        $tunnelOp->syncPermissions($expand([
             'tunnels.view', 'tunnels.edit', 'carts.view', 'carts.edit',
             'processing.view',
-        ]);
+        ]));
 
         // Magasinier
         $warehouse = Role::firstOrCreate(['name' => 'Magasinier']);
-        $warehouse->syncPermissions([
+        $warehouse->syncPermissions($expand([
             'stock.view', 'stock.create', 'cold-rooms.view',
             'arrivals.view', 'deliveries.view',
-        ]);
+        ]));
 
         // Client lecture seule
         $clientViewer = Role::firstOrCreate(['name' => 'Client']);
-        $clientViewer->syncPermissions([
+        $clientViewer->syncPermissions($expand([
             'stock.view', 'invoices.view', 'deliveries.view',
-        ]);
+        ]));
 
         // Create super admin user
         $admin = User::firstOrCreate(

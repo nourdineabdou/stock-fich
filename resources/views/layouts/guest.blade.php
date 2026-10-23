@@ -182,7 +182,7 @@
                     </div>
                     <h2 class="text-white text-4xl xl:text-5xl font-extrabold leading-tight">
                         Contrôlez chaque<br>
-                        <span class="text-transparent bg-clip-text" style="background: linear-gradient(90deg, #7dd3fc, #bae6fd);">
+                        <span class="text-transparent" style="background-image: linear-gradient(90deg, #7dd3fc, #bae6fd); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; -webkit-box-decoration-break: clone; box-decoration-break: clone;">
                             étape de la chaîne<br>du froid
                         </span>
                     </h2>

@@ -2,97 +2,86 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
+@php
+    $kg = fn ($v) => number_format((float) $v, 2, ',', ' ');
+@endphp
 <style>
+    @page { margin: 0; size: A4 portrait; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: DejaVu Sans, sans-serif; font-size: 11px; color: #1e293b; }
-    .header { background: #111827; color: #fff; padding: 16px 20px; display: flex; justify-content: space-between; align-items: flex-start; }
-    .title { font-size: 22px; font-weight: bold; }
-    .subtitle { font-size: 10px; color: #cbd5e1; margin-top: 4px; }
-    .logo { height: 52px; margin-bottom: 6px; }
-    .company { font-size: 10px; color: #d1d5db; margin-top: 2px; }
-    .container { padding: 18px 20px; }
-    .block { border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px; margin-bottom: 12px; }
-    .label { font-size: 9px; text-transform: uppercase; color: #6b7280; margin-bottom: 4px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    thead tr { background: #111827; color: #fff; }
-    th { padding: 8px; text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: 0.4px; }
-    td { padding: 8px; border-bottom: 1px solid #e5e7eb; font-size: 11px; }
-    tbody tr:nth-child(even) { background: #f9fafb; }
-    .text-right { text-align: right; }
-    .footer { margin-top: 24px; font-size: 9px; color: #6b7280; text-align: center; }
+    body { font-family: DejaVu Sans, sans-serif; font-size: 12px; color: #111827; padding: 34px 40px; }
+    table { border-collapse: collapse; width: 100%; }
+    h1 { font-size: 18px; letter-spacing: 1px; }
+    .sub { font-size: 11px; color: #4b5563; margin-top: 3px; }
+    .warn { margin-top: 10px; border: 1.5px solid #dc2626; color: #b91c1c; padding: 6px 10px; font-size: 10px; font-weight: bold; }
+    .sheet { margin-top: 14px; }
+    .sheet th { background: #111827; color: #fff; font-size: 10px; text-transform: uppercase; padding: 8px 10px; text-align: left; border: 1px solid #111827; }
+    .sheet td { padding: 9px 10px; border: 1px solid #9ca3af; }
+    .cart { font-size: 15px; font-weight: bold; text-align: center; vertical-align: middle; background: #f3f4f6; }
+    .r { text-align: right; }
+    .sheet th.r { text-align: right; }
+    .c, .sheet th.c { text-align: center; }
+    .subtotal td { background: #f9fafb; font-size: 10px; color: #4b5563; }
+    .total td { background: #111827; color: #fff; font-weight: bold; font-size: 13px; }
+    .box { display: inline-block; width: 14px; height: 14px; border: 1.5px solid #111827; }
 </style>
 </head>
 <body>
-<div class="header">
-    <div>
-        @if(!empty($logoPath))
-            <img src="{{ $logoPath }}" alt="Logo" class="logo">
-        @endif
-        <div class="company" style="font-size:12px;font-weight:bold;color:#e5e7eb;">{{ $settings['company_name'] ?? 'FreezePro Maroc' }}</div>
-        <div class="company">{{ $settings['company_address'] ?? '' }}</div>
-        <div class="company">{{ $settings['company_phone'] ?? '' }} {{ !empty($settings['company_email']) ? ' - '.$settings['company_email'] : '' }}</div>
-        <div class="company">NIF: {{ $settings['company_nif'] ?? '-' }} | ICE: {{ $settings['company_ice'] ?? '-' }}</div>
-    </div>
-    <div style="text-align:right;">
-        <div class="title">BON DE CHARGEMENT</div>
-        <div class="subtitle">Traitement: {{ $processing->reference }}</div>
-        <div class="subtitle">Date: {{ $processing->start_date?->format('d/m/Y') ?? now()->format('d/m/Y') }}</div>
-    </div>
-</div>
 
-<div class="container">
-    <div class="block">
-        <div class="label">Client</div>
-        <div>{{ $processing->client->name ?? '-' }}</div>
-    </div>
+<table>
+    <tr>
+        <td>
+            <h1>BON DE CHARGEMENT</h1>
+            <div class="sub">{{ $processing->reference }} — {{ $processing->client->name ?? '-' }}</div>
+        </td>
+        <td class="r" style="vertical-align:top; font-size:11px; color:#4b5563;">{{ now()->format('d/m/Y') }}</td>
+    </tr>
+</table>
 
-        <div class="block">
-            <div class="label">Instruction de chargement</div>
-            <div>Chaque ligne indique le tunnel, le chariot, le type de poisson et la quantite a charger. Cette fiche est destinee a l'equipe terrain.</div>
-        </div>
+@php $overflowTotal = $rows->sum(fn ($r) => $r['overflow'] ?? 0); @endphp
+@unless($distributionValidated)
+<div class="warn">Répartition non validée — document provisoire.</div>
+@endunless
+@if($overflowTotal > 0)
+<div class="warn">{{ $kg($overflowTotal) }} kg dépassent la capacité des chariots — ajouter un chariot.</div>
+@endif
 
-    <table>
-        <thead>
+<table class="sheet">
+    <thead>
+        <tr>
+            <th style="width:22%;" class="c">Chariot</th>
+            <th>Poisson</th>
+            <th class="r" style="width:24%;">Quantité</th>
+            <th class="c" style="width:12%;">Fait</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach($carts as $cart)
+            @foreach($cart['lines'] as $i => $line)
             <tr>
-                <th>Tunnel</th>
-                <th>Chariot</th>
-                <th>Poisson</th>
-                <th class="text-right">Quantite (kg)</th>
+                @if($i === 0)
+                <td class="cart" rowspan="{{ $cart['lines']->count() + ($cart['lines']->count() > 1 ? 1 : 0) }}">{{ $cart['code'] }}</td>
+                @endif
+                <td><b>{{ $line['fish'] }}</b></td>
+                <td class="r"><b>{{ $kg($line['quantity_kg']) }} kg</b></td>
+                <td class="c"><span class="box"></span></td>
             </tr>
-        </thead>
-        <tbody>
-            @php
-                $groupedRows = $rows->groupBy(fn ($row) => $row['tunnel_name'] ?? 'Affecter');
-            @endphp
-            @foreach($groupedRows as $tunnelName => $tunnelRows)
-                @foreach($tunnelRows->values() as $index => $row)
-                <tr>
-                    @if($index === 0)
-                    <td rowspan="{{ $tunnelRows->count() }}" style="font-weight:bold;vertical-align:top;">{{ $tunnelName }}</td>
-                    @endif
-                    <td>{{ $row['cart_code'] }}</td>
-                    <td>{{ $row['fish'] }}</td>
-                    <td class="text-right">{{ number_format($row['quantity_kg'], 2) }}</td>
-                </tr>
-                @endforeach
             @endforeach
-            <tr>
-                <td style="font-weight:bold;">Total</td>
+            @if($cart['lines']->count() > 1)
+            <tr class="subtotal">
+                <td>Total chariot</td>
+                <td class="r"><b>{{ $kg($cart['total']) }} kg</b></td>
                 <td></td>
-                <td></td>
-                <td class="text-right" style="font-weight:bold;">{{ number_format($totalWeight, 2) }} kg</td>
             </tr>
-        </tbody>
-    </table>
+            @endif
+        @endforeach
+        <tr class="total">
+            <td class="c">{{ $carts->count() }} chariot(s)</td>
+            <td>TOTAL</td>
+            <td class="r">{{ $kg($totalWeight) }} kg</td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
 
-    <div style="margin-top:26px;display:flex;justify-content:space-between;gap:20px;">
-        <div style="flex:1;text-align:center;border-top:1px solid #cbd5e1;padding-top:8px;color:#64748b;font-size:10px;">Signature Responsable Production</div>
-        <div style="flex:1;text-align:center;border-top:1px solid #cbd5e1;padding-top:8px;color:#64748b;font-size:10px;">Signature Chef d'equipe</div>
-    </div>
-
-    <div class="footer">
-        Document genere le {{ now()->format('d/m/Y H:i') }}
-    </div>
-</div>
 </body>
 </html>

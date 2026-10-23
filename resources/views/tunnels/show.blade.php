@@ -46,6 +46,24 @@
     </div>
 </div>
 
+@php
+    [$tMin, $tMax] = \App\Models\CompanySetting::tunnelWindow();
+    $byState = $activeAssignmentsByCart->filter(fn ($a) => $a->assigned_at)->groupBy(function ($a) use ($tMin, $tMax) {
+        $h = $a->assigned_at->diffInMinutes(now()) / 60;
+        return $h < $tMin ? 'freezing' : ($h <= $tMax ? 'ready' : 'late');
+    });
+@endphp
+@if($activeAssignmentsByCart->isNotEmpty())
+<div class="mb-4 flex flex-wrap items-center gap-2 text-sm">
+    <span class="text-slate-500"><i class="fas fa-stopwatch mr-1"></i>Temps attendu : {{ $tMin }} h à {{ $tMax }} h —</span>
+    <span class="px-3 py-1 rounded-full bg-sky-100 text-sky-700 font-semibold">{{ ($byState['freezing'] ?? collect())->count() }} en congélation</span>
+    <span class="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">{{ ($byState['ready'] ?? collect())->count() }} prêt(s) à sortir</span>
+    @if(($byState['late'] ?? collect())->isNotEmpty())
+    <span class="px-3 py-1 rounded-full bg-red-100 text-red-700 font-semibold animate-pulse">{{ $byState['late']->count() }} dépassé(s) — à sortir</span>
+    @endif
+</div>
+@endif
+
 <h2 class="text-sm font-semibold text-slate-600 uppercase tracking-wider mb-3">Chariots</h2>
 
 @if($activeAssignmentsByCart->count() > 0)
@@ -62,7 +80,7 @@
         <div id="hidden-inputs-container"></div>
         <button type="submit" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold"
                 onclick="return confirm('Dissocier les ' + document.querySelectorAll('input.cart-checkbox:checked').length + ' chariot(s) sélectionné(s) et passer au cartonnage ?')">
-            <i class="fas fa-trash mr-1"></i> Dissocier les sélectionnés
+            <i class="fas fa-right-from-bracket mr-1"></i> Sortir les sélectionnés du tunnel
         </button>
     </form>
 </div>
@@ -108,7 +126,9 @@
         @if($assignment)
         <div class="mt-2 border-t border-slate-200 pt-2 text-[11px] text-slate-600 space-y-1 dark:border-slate-700 dark:text-slate-300">
             <p><span class="font-semibold">Depuis:</span> {{ $assignment->assigned_at?->format('d/m/Y H:i') ?? '-' }}</p>
-            <p><span class="font-semibold">Temps tunnel:</span> {{ $elapsedLabel ?? '-' }}</p>
+            @if($assignment->assigned_at)
+            @include('partials.tunnel-timer', ['since' => $assignment->assigned_at])
+            @endif
             <p><span class="font-semibold">Traitement:</span> {{ $assignment->processingOrder->reference ?? '-' }}</p>
             <p><span class="font-semibold">Client:</span> {{ $assignment->processingOrder->client->name ?? '-' }}</p>
         </div>
@@ -117,13 +137,13 @@
             <form method="POST" action="{{ route('tunnels.release-assignment', ['tunnel' => $tunnel, 'assignment' => $assignment]) }}" class="flex-1">
                 @csrf
                 <button type="submit" class="w-full px-2 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-semibold"
-                        onclick="return confirm('Dissocier ce chariot du tunnel et passer au cartonnage ?')">
-                    <i class="fas fa-arrow-right mr-1"></i> Seul
+                        onclick="return confirm('Sortir ce chariot du tunnel ?')">
+                    <i class="fas fa-right-from-bracket mr-1"></i> Sortir du tunnel
                 </button>
             </form>
         </div>
         @elseif(in_array($cart->status, ['processing', 'frozen']))
-        <p class="mt-2 text-[11px] text-amber-700 text-center">Affectation active introuvable</p>
+        <p class="mt-2 text-[11px] text-amber-700 text-center">Chargement en cours — pas encore dans un tunnel</p>
         @endif
     </div>
     @empty
@@ -177,3 +197,6 @@ document.getElementById('select-all-carts').addEventListener('change', function(
 updateBulkForm();
 </script>
 @endsection
+@push('scripts')
+<script src="{{ asset('js/affectation.js') }}?v={{ filemtime(public_path('js/affectation.js')) }}"></script>
+@endpush

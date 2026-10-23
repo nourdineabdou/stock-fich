@@ -20,6 +20,9 @@ class FishDataSeeder extends Seeder
             ['name' => 'Crevette royale','scientific_name' => 'Penaeus kerathurus',          'description' => 'Crustacé de haute valeur, pêché sur le littoral atlantique.'],
             ['name' => 'Sole',           'scientific_name' => 'Solea solea',                 'description' => 'Poisson plat démersal, très prisé en restauration gastronomique.'],
             ['name' => 'Loup de mer',    'scientific_name' => 'Dicentrarchus labrax',        'description' => 'Poisson côtier noble, élevé en aquaculture et pêché en mer.'],
+            ['name' => 'Poulpe',         'scientific_name' => 'Octopus vulgaris',            'description' => 'Céphalopode à forte valeur, principale espèce exportée.'],
+            ['name' => 'Seiche',         'scientific_name' => 'Sepia officinalis',           'description' => 'Céphalopode côtier, exporté congelé.'],
+            ['name' => 'Calamar',        'scientific_name' => 'Loligo vulgaris',             'description' => 'Céphalopode pélagique, conditionné en cartons.'],
         ];
 
         $fishIds = [];
@@ -28,20 +31,8 @@ class FishDataSeeder extends Seeder
             $fishIds[$data['name']] = $fish->id;
         }
 
-        // ─── Types de cartons ────────────────────────────────────────────────
-        $cartonTypes = [
-            ['name' => 'Carton 5 kg Standard',   'weight_kg' => 5.00,  'description' => 'Petit carton standard pour poissons nobles (sole, loup).'],
-            ['name' => 'Carton 10 kg Standard',  'weight_kg' => 10.00, 'description' => 'Carton polyvalent, usage général.'],
-            ['name' => 'Carton 15 kg Export',    'weight_kg' => 15.00, 'description' => 'Carton export certifié, norme UE.'],
-            ['name' => 'Carton 20 kg Premium',   'weight_kg' => 20.00, 'description' => 'Carton premium renforcé pour longue conservation.'],
-            ['name' => 'Carton 25 kg Vrac',      'weight_kg' => 25.00, 'description' => 'Grand carton vrac pour sardines et anchois.'],
-        ];
-
-        $cartonIds = [];
-        foreach ($cartonTypes as $data) {
-            $carton = CartonType::updateOrCreate(['name' => $data['name']], array_merge($data, ['active' => true]));
-            $cartonIds[$data['name']] = $carton->id;
-        }
+        // ─── Types de cartons (seeder dedie) ─────────────────────────────────
+        $this->call(CartonTypesSeeder::class);
 
         // ─── Associations Poisson ↔ Carton (pivot) ───────────────────────────
         $associations = [
@@ -85,6 +76,18 @@ class FishDataSeeder extends Seeder
                 ['carton' => 'Carton 10 kg Standard', 'default_weight' => 10.0, 'price' => 9.00, 'is_default' => true,  'min_cartons' => 10],
                 ['carton' => 'Carton 5 kg Standard',  'default_weight' => 5.0,  'price' => 9.50, 'is_default' => false, 'min_cartons' => 5],
             ],
+            // Cephalopodes → Carton 16 kg
+            'Poulpe' => [
+                ['carton' => 'Carton 16 kg',          'default_weight' => 16.0, 'price' => 0, 'is_default' => true,  'min_cartons' => 1],
+                ['carton' => 'Carton 10 kg Standard', 'default_weight' => 10.0, 'price' => 0, 'is_default' => false, 'min_cartons' => 1],
+            ],
+            'Seiche' => [
+                ['carton' => 'Carton 16 kg',          'default_weight' => 16.0, 'price' => 0, 'is_default' => true,  'min_cartons' => 1],
+            ],
+            'Calamar' => [
+                ['carton' => 'Carton 10 kg Standard', 'default_weight' => 10.0, 'price' => 0, 'is_default' => true,  'min_cartons' => 1],
+                ['carton' => 'Carton 16 kg',          'default_weight' => 16.0, 'price' => 0, 'is_default' => false, 'min_cartons' => 1],
+            ],
         ];
 
         foreach ($associations as $fishName => $cartons) {
@@ -107,6 +110,6 @@ class FishDataSeeder extends Seeder
             $fish->cartonTypes()->sync($syncData);
         }
 
-        $this->command->info('✅ Types de poissons (8) et cartons (5) créés + associations pivot.');
+        $this->command->info('✅ Types de poissons (11) créés + associations poisson ↔ carton.');
     }
 }

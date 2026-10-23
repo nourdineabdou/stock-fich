@@ -54,7 +54,7 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">TVA (%)</label>
-                    <input type="number" step="0.1" name="tax_rate" value="{{ old('tax_rate', $invoice->tax_rate ?? 20) }}"
+                    <input type="number" step="0.1" name="tax_rate" value="{{ old('tax_rate', $invoice->tax_rate ?? \App\Models\CompanySetting::taxRate()) }}"
                         class="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm dark:bg-slate-700 dark:border-slate-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500">
                 </div>
                 <div>
@@ -123,7 +123,7 @@
 @push('scripts')
 <script>
 let invIdx = {{ isset($invoice) ? count($invoice->items ?? []) : count($invoiceItems ?? []) }};
-const initialTax = {{ $tax ?? 20 }};
+const initialTax = {{ $tax ?? \App\Models\CompanySetting::taxRate() }};
 
 function addInvoiceItem() {
     const i = invIdx++;

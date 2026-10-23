@@ -16,4 +16,33 @@ class ProcessingOrder extends Model
     public function cartAssignments() { return $this->hasMany(CartAssignment::class); }
     public function packagingOrders() { return $this->hasMany(PackagingOrder::class); }
     public function freezingCycles() { return $this->hasMany(FreezingCycle::class); }
+
+    /**
+     * Le cartonnage n'est possible qu'apres la sortie du tunnel : les chariots doivent avoir
+     * ete affectes puis tous dissocies du tunnel. Retourne null si pret, sinon la raison.
+     */
+    public function packagingBlockReason(): ?string
+    {
+        $assignments = $this->relationLoaded('cartAssignments') ? $this->cartAssignments : $this->cartAssignments()->get();
+
+        if ($assignments->isEmpty()) {
+            return "Les chariots ne sont pas encore affectés ni passés au tunnel.";
+        }
+
+        $active = $assignments->where('status', 'active');
+        $notPlaced = $active->whereNull('tunnel_id')->count();
+        if ($notPlaced > 0) {
+            return "{$notPlaced} chariot(s) pas encore mis dans un tunnel : placez-les (étape « Chariots dans les tunnels »), puis faites-les sortir avant le cartonnage.";
+        }
+        if ($active->count() > 0) {
+            return "{$active->count()} chariot(s) encore dans le tunnel : faites-les sortir du tunnel avant le cartonnage.";
+        }
+
+        return null;
+    }
+
+    public function isReadyForPackaging(): bool
+    {
+        return $this->packagingBlockReason() === null;
+    }
 }
