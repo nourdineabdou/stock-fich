@@ -499,7 +499,7 @@ class SampleDataSeeder extends Seeder
                 'client'        => 'Chario SARL',
                 'reference'     => 'BL-2026001',
                 'delivery_date' => now()->subDays(55),
-                'status'        => 'completed',
+                'status'        => 'delivered',
                 'notes'         => 'Livraison complète, réception signée.',
                 'items'         => [
                     ['lot' => 'LOT-SAR-2025-8801', 'qty' => 100, 'weight_kg' => 1500.0],
@@ -510,7 +510,7 @@ class SampleDataSeeder extends Seeder
                 'client'        => 'Kilian Pêche & Distribution',
                 'reference'     => 'BL-2026002',
                 'delivery_date' => now()->subDays(40),
-                'status'        => 'completed',
+                'status'        => 'delivered',
                 'notes'         => 'Livraison Agadir — camion réfrigéré.',
                 'items'         => [
                     ['lot' => 'LOT-MER-2025-7712', 'qty' => 80,  'weight_kg' => 800.0],
@@ -686,4 +686,3 @@ class SampleDataSeeder extends Seeder
         $this->command->info('  → 5 factures créées (2 payées, 1 partielle, 2 brouillons).');
     }
 }
-
