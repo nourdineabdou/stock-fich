@@ -21,7 +21,6 @@ class DatabaseSeeder extends Seeder
             FishDataSeeder::class,              // Types de poissons + pivot (appelle CartonTypesSeeder)
             InfrastructureSeeder::class,        // Chambres froides + tunnels + chariots
             ClientsSeeder::class,               // Clients (Chario, Kilian…)
-            SampleDataSeeder::class,            // Arrivages, traitements, stock, livraisons, factures
         ]);
 
         $this->command->newLine();

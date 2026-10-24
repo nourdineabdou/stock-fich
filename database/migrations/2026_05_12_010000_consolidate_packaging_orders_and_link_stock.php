@@ -70,7 +70,18 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('packaging_orders', function (Blueprint $table) {
+            $table->dropForeign(['processing_order_id']);
+        });
+
+        Schema::table('packaging_orders', function (Blueprint $table) {
             $table->dropUnique(['processing_order_id']);
+        });
+
+        Schema::table('packaging_orders', function (Blueprint $table) {
+            $table->foreign('processing_order_id')
+                ->references('id')
+                ->on('processing_orders')
+                ->cascadeOnDelete();
         });
 
         Schema::table('client_stock_batches', function (Blueprint $table) {
